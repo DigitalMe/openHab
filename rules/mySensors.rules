@@ -1,0 +1,338 @@
+import org.joda.time.*
+import org.openhab.core.library.types.*
+import org.openhab.core.library.types.PercentType
+import org.openhab.core.library.items.SwitchItem
+import org.openhab.model.script.actions.*
+import org.openhab.model.script.actions.Timer
+import java.util.HashMap
+import java.util.LinkedHashMap
+import java.util.ArrayList
+import java.util.Map
+import java.util.concurrent.locks.Lock
+import java.util.concurrent.locks.ReentrantLock
+var Lock lock = new ReentrantLock()
+var String ArduinoUpdate = ""
+var String sketchName = ""
+var Timer timer
+/* Difference between val and var
+* val variable can be declareted only once, var more than once
+*/
+// AllItems contains information about all items from file *.item
+var String itemsAll = all.getMembers().toString
+var String itemsUnconfigured = unconfigured.getMembers().toString
+var String itemsUnused = unused.getMembers().toString
+var String deviceDiscovery = "ON"
+// ----------- Openhab configuration ---------------------
+var String OPENHAB_HOME = "/opt/openhab"
+var String OPENHAB_CONF = "/opt/openhab/configurations"
+var String SITE_NAME = "default"
+/*
+*Requirements:
+*       Each Item belongs to group "all"
+*       Devices that we don't use are in group "unused"
+*       Each discovered device will be added to groups "all", "unconfigured", "unused"
+*       we can configure any discovered device using HABmin
+*       For adding new item to file *.item we use perl/bash script
+*       Detailed information about discovered device on single node are in SITEMAP_mysensors_nodeId.html location OPENHAB_WEBAPPS ---- not implemented yet
+*/
+// Presentation
+
+var HashMap<String, LinkedHashMap<String, String>> presentationSubTypeToValue = newLinkedHashMap(
+        "S_DOOR" -> (newLinkedHashMap("value" -> "0", "comment" -> "Door and window sensors ", "itemType" -> "String")),
+        "S_MOTION" -> (newLinkedHashMap("value" -> "1", "comment" -> "Motion sensors ", "itemType" -> "String")),
+        "S_SMOKE" -> (newLinkedHashMap("value" -> "2", "comment" -> "Smoke sensor ", "itemType" -> "String")),
+        "S_LIGHT" -> (newLinkedHashMap("value" -> "3", "comment" -> "Light Actuator (on/off) ", "itemType" -> "String")),
+        "S_DIMMER" -> (newLinkedHashMap("value" -> "4", "comment" -> "Dimmable device of some kind ", "itemType" -> "String")),
+        "S_COVER" -> (newLinkedHashMap("value" -> "5", "comment" -> "Window covers or shades ", "itemType" -> "String")),
+        "S_TEMP" -> (newLinkedHashMap("value" -> "6", "comment" -> "Temperature sensor ", "itemType" -> "String")),
+        "S_HUM" -> (newLinkedHashMap("value" -> "7", "comment" -> "Humidity sensor ", "itemType" -> "String")),
+        "S_BARO" -> (newLinkedHashMap("value" -> "8", "comment" -> "Barometer sensor (Pressure) ", "itemType" -> "String")),
+        "S_WIND" -> (newLinkedHashMap("value" -> "9", "comment" -> "Wind sensor ", "itemType" -> "String")),
+        "S_RAIN" -> (newLinkedHashMap("value" -> "10", "comment" -> "Rain sensor ", "itemType" -> "String")),
+        "S_UV" -> (newLinkedHashMap("value" -> "11", "comment" -> "UV sensor ", "itemType" -> "String")),
+        "S_WEIGHT" -> (newLinkedHashMap("value" -> "12", "comment" -> "Weight sensor for scales etc. ", "itemType" -> "String")),
+        "S_POWER" -> (newLinkedHashMap("value" -> "13", "comment" -> "Power measuring device, like power meters ", "itemType" -> "String")),
+        "S_HEATER" -> (newLinkedHashMap("value" -> "14", "comment" -> "Heater device ", "itemType" -> "String")),
+        "S_DISTANCE" -> (newLinkedHashMap("value" -> "15", "comment" -> "Distance sensor ", "itemType" -> "String")),
+        "S_LIGHT_LEVEL" -> (newLinkedHashMap("value" -> "16", "comment" -> "Light sensor ", "itemType" -> "String")),
+        "S_ARDUINO_NODE" -> (newLinkedHashMap("value" -> "17", "comment" -> "Arduino node device ", "itemType" -> "String")),
+        "S_ARDUINO_RELAY" -> (newLinkedHashMap("value" -> "18", "comment" -> "Arduino repeating node device ", "itemType" -> "String")),
+        "S_LOCK" -> (newLinkedHashMap("value" -> "19", "comment" -> "Lock device ", "itemType" -> "String")),
+        "S_IR" -> (newLinkedHashMap("value" -> "20", "comment" -> "Ir sender/receiver device ", "itemType" -> "String")),
+        "S_WATER" -> (newLinkedHashMap("value" -> "21", "comment" -> "Water meter ", "itemType" -> "String")),
+        "S_AIR_QUALITY" -> (newLinkedHashMap("value" -> "22", "comment" -> "Air quality sensor e.g. MQ-2 ", "itemType" -> "String")),
+        "S_CUSTOM" -> (newLinkedHashMap("value" -> "23", "comment" -> "Use this for custom sensors where no other fits. ", "itemType" -> "String")),
+        "S_DUST" -> (newLinkedHashMap("value" -> "24", "comment" -> "Dust level sensor ", "itemType" -> "String")),
+        "S_SCENE_CONTROLLER" -> (newLinkedHashMap("value" -> "25", "comment" -> "Scene controller device ", "itemType" -> "String"))
+)
+
+var HashMap<Integer, LinkedHashMap<String, String>> presentationValueToSubType = newLinkedHashMap(
+        0 -> (newLinkedHashMap("type" -> "S_DOOR", "comment" -> "Door and window sensors ", "itemType" -> "String")),
+        1 -> (newLinkedHashMap("type" -> "S_MOTION", "comment" -> "Motion sensors ", "itemType" -> "String")),
+        2 -> (newLinkedHashMap("type" -> "S_SMOKE", "comment" -> "Smoke sensor ", "itemType" -> "String")),
+        3 -> (newLinkedHashMap("type" -> "S_LIGHT", "comment" -> "Light Actuator (on/off) ", "itemType" -> "String")),
+        4 -> (newLinkedHashMap("type" -> "S_DIMMER", "comment" -> "Dimmable device of some kind ", "itemType" -> "String")),
+        5 -> (newLinkedHashMap("type" -> "S_COVER", "comment" -> "Window covers or shades ", "itemType" -> "String")),
+        6 -> (newLinkedHashMap("type" -> "S_TEMP", "comment" -> "Temperature sensor ", "itemType" -> "String")),
+        7 -> (newLinkedHashMap("type" -> "S_HUM", "comment" -> "Humidity sensor ", "itemType" -> "String")),
+        8 -> (newLinkedHashMap("type" -> "S_BARO", "comment" -> "Barometer sensor (Pressure) ", "itemType" -> "String")),
+        9 -> (newLinkedHashMap("type" -> "S_WIND", "comment" -> "Wind sensor ", "itemType" -> "String")),
+        10 -> (newLinkedHashMap("type" -> "S_RAIN", "comment" -> "Rain sensor ", "itemType" -> "String")),
+        11 -> (newLinkedHashMap("type" -> "S_UV", "comment" -> "UV sensor ", "itemType" -> "String")),
+        12 -> (newLinkedHashMap("type" -> "S_WEIGHT", "comment" -> "Weight sensor for scales etc. ", "itemType" -> "String")),
+        13 -> (newLinkedHashMap("type" -> "S_POWER", "comment" -> "Power measuring device, like power meters ", "itemType" -> "String")),
+        14 -> (newLinkedHashMap("type" -> "S_HEATER", "comment" -> "Heater device ", "itemType" -> "String")),
+        15 -> (newLinkedHashMap("type" -> "S_DISTANCE", "comment" -> "Distance sensor ", "itemType" -> "String")),
+        16 -> (newLinkedHashMap("type" -> "S_LIGHT_LEVEL", "comment" -> "Light sensor ", "itemType" -> "String")),
+        17 -> (newLinkedHashMap("type" -> "S_ARDUINO_NODE", "comment" -> "Arduino node device ", "itemType" -> "String")),
+        18 -> (newLinkedHashMap("type" -> "S_ARDUINO_RELAY", "comment" -> "Arduino repeating node device ", "itemType" -> "String")),
+        19 -> (newLinkedHashMap("type" -> "S_LOCK", "comment" -> "Lock device ", "itemType" -> "String")),
+        20 -> (newLinkedHashMap("type" -> "S_IR", "comment" -> "Ir sender/receiver device ", "itemType" -> "String")),
+        21 -> (newLinkedHashMap("type" -> "S_WATER", "comment" -> "Water meter ", "itemType" -> "String")),
+        22 -> (newLinkedHashMap("type" -> "S_AIR_QUALITY", "comment" -> "Air quality sensor e.g. MQ-2 ", "itemType" -> "String")),
+        23 -> (newLinkedHashMap("type" -> "S_CUSTOM", "comment" -> "Use this for custom sensors where no other fits. ", "itemType" -> "String")),
+        24 -> (newLinkedHashMap("type" -> "S_DUST", "comment" -> "Dust level sensor ", "itemType" -> "String")),
+        25 -> (newLinkedHashMap("type" -> "S_SCENE_CONTROLLER", "comment" -> "Scene controller device ", "itemType" -> "String"))
+)
+// --------------------- set & req -----------------------------
+//
+var HashMap<String, LinkedHashMap<String, String>> setSubTypeToValue = newLinkedHashMap(
+"V_TEMP" -> (newLinkedHashMap("value" -> "0", "comment" -> "Temperature ", "itemType" -> "Number")),
+        "V_HUM" -> (newLinkedHashMap("value" -> "1", "comment" -> "Humidity ", "itemType" -> "Number")),
+        "V_LIGHT" -> (newLinkedHashMap("value" -> "2", "comment" -> "Light status. 0=off 1=on ", "itemType" -> "Switch")),
+        "V_DIMMER" -> (newLinkedHashMap("value" -> "3", "comment" -> "Dimmer value. 0-100% ", "itemType" -> "Dimmer")),
+        "V_PRESSURE" -> (newLinkedHashMap("value" -> "4", "comment" -> "Atmospheric Pressure ", "itemType" -> "Number")),
+        "V_FORECAST" -> (newLinkedHashMap("value" -> "5", "comment" -> "Whether forecast. One of stable, sunny, cloudy, unstable, thunderstorm or unknown ", "itemType" -> "String")),
+        "V_RAIN" -> (newLinkedHashMap("value" -> "6", "comment" -> "Amount of rain ", "itemType" -> "Number")),
+        "V_RAINRATE" -> (newLinkedHashMap("value" -> "7", "comment" -> "Rate of rain ", "itemType" -> "Number")),
+        "V_WIND" -> (newLinkedHashMap("value" -> "8", "comment" -> "Windspeed ", "itemType" -> "Number")),
+        "V_GUST" -> (newLinkedHashMap("value" -> "9", "comment" -> "Gust ", "itemType" -> "Number")),
+        "V_DIRECTION" -> (newLinkedHashMap("value" -> "10", "comment" -> "Wind direction ", "itemType" -> "Number")),
+        "V_UV" -> (newLinkedHashMap("value" -> "11", "comment" -> "UV light level ", "itemType" -> "Number")),
+        "V_WEIGHT" -> (newLinkedHashMap("value" -> "12", "comment" -> "Weight (for scales etc) ", "itemType" -> "Number")),
+        "V_DISTANCE" -> (newLinkedHashMap("value" -> "13", "comment" -> "Distance ", "itemType" -> "Number")),
+        "V_IMPEDANCE" -> (newLinkedHashMap("value" -> "14", "comment" -> "Impedance value ", "itemType" -> "Number")),
+        "V_ARMED" -> (newLinkedHashMap("value" -> "15", "comment" -> "Armed status of a security sensor. 1=Armed, 0=Bypassed ", "itemType" -> "Switch")),
+        "V_TRIPPED" -> (newLinkedHashMap("value" -> "16", "comment" -> "Tripped status of a security sensor. 1=Tripped, 0=Untripped ", "itemType" -> "String")),
+        "V_WATT" -> (newLinkedHashMap("value" -> "17", "comment" -> "Watt value for power meters ", "itemType" -> "Number")),
+        "V_KWH" -> (newLinkedHashMap("value" -> "18", "comment" -> "Accumulated number of KWH for a power meter ", "itemType" -> "Number")),
+        "V_SCENE_ON" -> (newLinkedHashMap("value" -> "19", "comment" -> "Turn on a scene ", "itemType" -> "String")),
+        "V_SCENE_OFF" -> (newLinkedHashMap("value" -> "20", "comment" -> "Turn of a scene ", "itemType" -> "String")),
+        "V_HEATER" -> (newLinkedHashMap("value" -> "21", "comment" -> "Mode of header. One of Off, HeatOn, CoolOn, or AutoChangeOver ")),
+        "V_HEATER_SW" -> (newLinkedHashMap("value" -> "22", "comment" -> "Heater switch power. 1=On, 0=Off ", "itemType" -> "Switch")),
+        "V_LIGHT_LEVEL" -> (newLinkedHashMap("value" -> "23", "comment" -> "Light level. 0-100% ", "itemType" -> "Number")),
+        "V_VAR1" -> (newLinkedHashMap("value" -> "24", "comment" -> "Custom value ", "itemType" -> "String")),
+        "V_VAR2" -> (newLinkedHashMap("value" -> "25", "comment" -> "Custom value ", "itemType" -> "String")),
+        "V_VAR3" -> (newLinkedHashMap("value" -> "26", "comment" -> "Custom value ", "itemType" -> "String")),
+        "V_VAR4" -> (newLinkedHashMap("value" -> "27", "comment" -> "Custom value ", "itemType" -> "String")),
+        "V_VAR5" -> (newLinkedHashMap("value" -> "28", "comment" -> "Custom value ", "itemType" -> "String")),
+        "V_UP" -> (newLinkedHashMap("value" -> "29", "comment" -> "Window covering. Up. ", "itemType" -> "String")),
+        "V_DOWN" -> (newLinkedHashMap("value" -> "30", "comment" -> "Window covering. Down. ", "itemType" -> "String")),
+        "V_STOP" -> (newLinkedHashMap("value" -> "31", "comment" -> "Window covering. Stop. ", "itemType" -> "String")),
+        "V_IR_SEND" -> (newLinkedHashMap("value" -> "32", "comment" -> "Send out an IR-command ", "itemType" -> "String")),
+        "V_IR_RECEIVE" -> (newLinkedHashMap("value" -> "33", "comment" -> "This message contains a received IR-command ", "itemType" -> "Number")),
+        "V_FLOW" -> (newLinkedHashMap("value" -> "34", "comment" -> "Flow of water (in meter) ", "itemType" -> "Number")),
+        "V_VOLUME" -> (newLinkedHashMap("value" -> "35", "comment" -> "Water volume ", "itemType" -> "Number")),
+        "V_LOCK_STATUS" -> (newLinkedHashMap("value" -> "36", "comment" -> "Set or get lock status. 1=Locked, 0=Unlocked ", "itemType" -> "Switch")),
+        "V_DUST_LEVEL" -> (newLinkedHashMap("value" -> "37", "comment" -> "Dust level ", "itemType" -> "Number")),
+        "V_VOLTAGE" -> (newLinkedHashMap("value" -> "38", "comment" -> "Voltage level ", "itemType" -> "Number")),
+        "V_CURRENT" -> (newLinkedHashMap("value" -> "39", "comment" -> "Current level ", "itemType" -> "Number"))
+)
+
+var HashMap<Integer, LinkedHashMap<String, String>> setValueToSubType = newLinkedHashMap(
+        0 -> (newLinkedHashMap("type" -> "V_TEMP", "comment" -> "Temperature ", "itemType" -> "Number")),
+        1 -> (newLinkedHashMap("type" -> "V_HUM", "comment" -> "Humidity ", "itemType" -> "Number")),
+        2 -> (newLinkedHashMap("type" -> "V_LIGHT", "comment" -> "Light status. 0=off 1=on ", "itemType" -> "Switch")),
+        3 -> (newLinkedHashMap("type" -> "V_DIMMER", "comment" -> "Dimmer value. 0-100% ", "itemType" -> "Dimmer")),
+        4 -> (newLinkedHashMap("type" -> "V_PRESSURE", "comment" -> "Atmospheric Pressure ", "itemType" -> "Number")),
+        5 -> (newLinkedHashMap("type" -> "V_FORECAST", "comment" -> "Whether forecast. One of stable, sunny, cloudy, unstable, thunderstorm or unknown ", "itemType" -> "String")),
+        6 -> (newLinkedHashMap("type" -> "V_RAIN", "comment" -> "Amount of rain ", "itemType" -> "Number")),
+        7 -> (newLinkedHashMap("type" -> "V_RAINRATE", "comment" -> "Rate of rain ", "itemType" -> "Number")),
+        8 -> (newLinkedHashMap("type" -> "V_WIND", "comment" -> "Windspeed ", "itemType" -> "Number")),
+        9 -> (newLinkedHashMap("type" -> "V_GUST", "comment" -> "Gust ", "itemType" -> "Number")),
+        10 -> (newLinkedHashMap("type" -> "V_DIRECTION", "comment" -> "Wind direction ", "itemType" -> "String")),
+        11 -> (newLinkedHashMap("type" -> "V_UV", "comment" -> "UV light level ", "itemType" -> "Number")),
+        12 -> (newLinkedHashMap("type" -> "V_WEIGHT", "comment" -> "Weight (for scales etc) ", "itemType" -> "Number")),
+        13 -> (newLinkedHashMap("type" -> "V_DISTANCE", "comment" -> "Distance ", "itemType" -> "Number")),
+        14 -> (newLinkedHashMap("type" -> "V_IMPEDANCE", "comment" -> "Impedance value ", "itemType" -> "Number")),
+        15 -> (newLinkedHashMap("type" -> "V_ARMED", "comment" -> "Armed status of a security sensor. 1=Armed, 0=Bypassed ", "itemType" -> "Switch")),
+        16 -> (newLinkedHashMap("type" -> "V_TRIPPED", "comment" -> "Tripped status of a security sensor. 1=Tripped, 0=Untripped ", "itemType" -> "String")),
+        17 -> (newLinkedHashMap("type" -> "V_WATT", "comment" -> "Watt value for power meters ", "itemType" -> "Number")),
+        18 -> (newLinkedHashMap("type" -> "V_KWH", "comment" -> "Accumulated number of KWH for a power meter ", "itemType" -> "Number")),
+        19 -> (newLinkedHashMap("type" -> "V_SCENE_ON", "comment" -> "Turn on a scene ", "itemType" -> "String")),
+        20 -> (newLinkedHashMap("type" -> "V_SCENE_OFF", "comment" -> "Turn of a scene ", "itemType" -> "String")),
+        21 -> (newLinkedHashMap("type" -> "V_HEATER", "comment" -> "Mode of header. One of Off, HeatOn, CoolOn, or AutoChangeOver ", "itemType" -> "String")),
+        22 -> (newLinkedHashMap("type" -> "V_HEATER_SW", "comment" -> "Heater switch power. 1=On, 0=Off ", "itemType" -> "Switch")),
+        23 -> (newLinkedHashMap("type" -> "V_LIGHT_LEVEL", "comment" -> "Light level. 0-100% ", "itemType" -> "Number")),
+        24 -> (newLinkedHashMap("type" -> "V_VAR1", "comment" -> "Custom value ", "itemType" -> "String")),
+        25 -> (newLinkedHashMap("type" -> "V_VAR2", "comment" -> "Custom value ", "itemType" -> "String")),
+        26 -> (newLinkedHashMap("type" -> "V_VAR3", "comment" -> "Custom value ", "itemType" -> "String")),
+        27 -> (newLinkedHashMap("type" -> "V_VAR4", "comment" -> "Custom value ", "itemType" -> "String")),
+        28 -> (newLinkedHashMap("type" -> "V_VAR5", "comment" -> "Custom value ", "itemType" -> "String")),
+        29 -> (newLinkedHashMap("type" -> "V_UP", "comment" -> "Window covering. Up. ", "itemType" -> "String")),
+        30 -> (newLinkedHashMap("type" -> "V_DOWN", "comment" -> "Window covering. Down. ", "itemType" -> "String")),
+        31 -> (newLinkedHashMap("type" -> "V_STOP", "comment" -> "Window covering. Stop. ", "itemType" -> "String")),
+        32 -> (newLinkedHashMap("type" -> "V_IR_SEND", "comment" -> "Send out an IR-command ", "itemType" -> "String")),
+        33 -> (newLinkedHashMap("type" -> "V_IR_RECEIVE", "comment" -> "This message contains a received IR-command ", "itemType" -> "String")),
+        34 -> (newLinkedHashMap("type" -> "V_FLOW", "comment" -> "Flow of water (in meter) ", "itemType" -> "Number")),
+        35 -> (newLinkedHashMap("type" -> "V_VOLUME", "comment" -> "Water volume ", "itemType" -> "Number")),
+        36 -> (newLinkedHashMap("type" -> "V_LOCK_STATUS", "comment" -> "Set or get lock status. 1=Locked, 0=Unlocked ", "itemType" -> "Switch")),
+        37 -> (newLinkedHashMap("type" -> "V_DUST_LEVEL", "comment" -> "Dust level ", "itemType" -> "Number")),
+        38 -> (newLinkedHashMap("type" -> "V_VOLTAGE", "comment" -> "Voltage level ", "itemType" -> "Number")),
+        39 -> (newLinkedHashMap("type" -> "V_CURRENT", "comment" -> "Current level ", "itemType" -> "Number"))
+)
+// Internal Commands
+// Internal Commands
+var HashMap<String, LinkedHashMap<String, String>> internalSubTypeToValue = newLinkedHashMap(
+        "I_BATTERY_LEVEL" -> (newLinkedHashMap("value" -> "0", "comment" -> "Use this to report the battery level (in percent 0-100). ", "itemType" -> "String")),
+        "I_TIME" -> (newLinkedHashMap("value" -> "1", "comment" -> "Sensors can request the current time from the Controller using this message. The time will be reported as the seconds since 1970 ")),
+        "I_VERSION" -> (newLinkedHashMap("value" -> "2", "comment" -> "Sensors report their library version at startup using this message type ", "itemType" -> "String")),
+        "I_ID_REQUEST" -> (newLinkedHashMap("value" -> "3", "comment" -> "Use this to request a unique node id from the controller. ", "itemType" -> "String")),
+        "I_ID_RESPONSE" -> (newLinkedHashMap("value" -> "4", "comment" -> "Id response back to sensor. Payload contains sensor id. ", "itemType" -> "String")),
+        "I_INCLUSION_MODE" -> (newLinkedHashMap("value" -> "5", "comment" -> "Start/stop inclusion mode of the Controller (1=start, 0=stop). ", "itemType" -> "String")),
+        "I_CONFIG" -> (newLinkedHashMap("value" -> "6", "comment" -> "Config request from node. Reply with (M)etric or (I)mperal back to sensor. ", "itemType" -> "String")),
+        "I_FIND_PARENT" -> (newLinkedHashMap("value" -> "7", "comment" -> "When a sensor starts up, it broadcast a search request to all neighbor nodes. They reply with a I_FIND_PARENT_RESPONSE. ", "itemType" -> "String")),
+        "I_FIND_PARENT_RESPONSE" -> (newLinkedHashMap("value" -> "8", "comment" -> "Reply message type to I_FIND_PARENT request. ", "itemType" -> "String")),
+        "I_LOG_MESSAGE" -> (newLinkedHashMap("value" -> "9", "comment" -> "Sent by the gateway to the Controller to trace-log a message ", "itemType" -> "String")),
+        "I_CHILDREN" -> (newLinkedHashMap("value" -> "10", "comment" -> "A message that can be used to transfer child sensors (from EEPROM routing table) of a repeating node. ", "itemType" -> "String")),
+        "I_SKETCH_NAME" -> (newLinkedHashMap("value" -> "11", "comment" -> "Optional sketch name that can be used to identify sensor in the Controller GUI ", "itemType" -> "String")),
+        "I_SKETCH_VERSION" -> (newLinkedHashMap("value" -> "12", "comment" -> "Optional sketch version that can be reported to keep track of the version of sensor in the Controller GUI. ", "itemType" -> "String")),
+        "I_REBOOT" -> (newLinkedHashMap("value" -> "13", "comment" -> "Used by OTA firmware updates. Request for node to reboot. ", "itemType" -> "String")),
+        "I_GATEWAY_READY" -> (newLinkedHashMap("value" -> "14", "comment" -> "Send by gateway to controller when startup is complete. ", "itemType" -> "String"))
+)
+var HashMap<Integer, LinkedHashMap<String, String>> internalValueToSubType = newLinkedHashMap(
+        0 -> (newLinkedHashMap("type" -> "I_BATTERY_LEVEL", "comment" -> "Use this to report the battery level (in percent 0-100). ", "itemType" -> "String")),
+        1 -> (newLinkedHashMap("type" -> "I_TIME", "comment" -> "Sensors can request the current time from the Controller using this message. The time will be reported as the seconds since 1970 ", "itemType" -> "String")),
+        2 -> (newLinkedHashMap("type" -> "I_VERSION", "comment" -> "Sensors report their library version at startup using this message type ", "itemType" -> "String")),
+        3 -> (newLinkedHashMap("type" -> "I_ID_REQUEST", "comment" -> "Use this to request a unique node id from the controller. ", "itemType" -> "String")),
+        4 -> (newLinkedHashMap("type" -> "I_ID_RESPONSE", "comment" -> "Id response back to sensor. Payload contains sensor id. ", "itemType" -> "String")),
+        5 -> (newLinkedHashMap("type" -> "I_INCLUSION_MODE", "comment" -> "Start/stop inclusion mode of the Controller (1=start, 0=stop). ", "itemType" -> "String")),
+        6 -> (newLinkedHashMap("type" -> "I_CONFIG", "comment" -> "Config request from node. Reply with (M)etric or (I)mperal back to sensor. ", "itemType" -> "String")),
+        7 -> (newLinkedHashMap("type" -> "I_FIND_PARENT", "comment" -> "When a sensor starts up, it broadcast a search request to all neighbor nodes. They reply with a I_FIND_PARENT_RESPONSE. ", "itemType" -> "String")),
+        8 -> (newLinkedHashMap("type" -> "I_FIND_PARENT_RESPONSE", "comment" -> "Reply message type to I_FIND_PARENT request. ", "itemType" -> "String")),
+        9 -> (newLinkedHashMap("type" -> "I_LOG_MESSAGE", "comment" -> "Sent by the gateway to the Controller to trace-log a message ", "itemType" -> "String")),
+        10 -> (newLinkedHashMap("type" -> "I_CHILDREN", "comment" -> "A message that can be used to transfer child sensors (from EEPROM routing table) of a repeating node. ", "itemType" -> "String")),
+        11 -> (newLinkedHashMap("type" -> "I_SKETCH_NAME", "comment" -> "Optional sketch name that can be used to identify sensor in the Controller GUI ", "itemType" -> "String")),
+        12 -> (newLinkedHashMap("type" -> "I_SKETCH_VERSION", "comment" -> "Optional sketch version that can be reported to keep track of the version of sensor in the Controller GUI. ", "itemType" -> "String")),
+        13 -> (newLinkedHashMap("type" -> "I_REBOOT", "comment" -> "Used by OTA firmware updates. Request for node to reboot. ", "itemType" -> "String")),
+        14 -> (newLinkedHashMap("type" -> "I_GATEWAY_READY", "comment" -> "Send by gateway to controller when startup is complete. ", "itemType" -> "String"))
+)
+
+// -------------------------------------- switch function ------------------------------------------------------
+val org.eclipse.xtext.xbase.lib.Functions$Function3 switchOperationNew = [
+        org.openhab.core.library.items.SwitchItem relayItem,
+        org.openhab.core.library.items.StringItem arduinoItem,
+        java.util.HashMap setSubTypeToValue|
+        var Integer state = 0
+//      V_LIGHT_10_4
+        var String[] itemName = relayItem.getName().toString().split("_")
+        var LinkedHashMap<String, String> typeMap = setSubTypeToValue.get(itemName.get(0)+"_"+itemName.get(1))
+        if (relayItem.state == OFF) {
+                state = 0
+        }
+        else {
+                state = 1
+        }
+        println ("Function: switchOperationNew >> "+ itemName.get(2)+";"+itemName.get(3)+";1;1;" + typeMap.get("value") + ";" + state )
+        arduinoItem.sendCommand(itemName.get(2)+";"+itemName.get(3)+";1;0;"+typeMap.get("value")+";" + state + "\n")
+]
+//dimmer
+val org.eclipse.xtext.xbase.lib.Functions$Function4 dimmerOperationNew = [
+        org.openhab.core.library.items.DimmerItem relayItem,
+        org.openhab.core.library.items.StringItem arduinoItem,
+        String receivedCommand,
+        java.util.HashMap setSubTypeToValue|
+        var Number percent = 0
+        if(relayItem.state instanceof DecimalType) percent = relayItem.state as DecimalType
+        if(receivedCommand==INCREASE) percent = percent + 5
+        if(receivedCommand==DECREASE) percent = percent - 5
+        if(receivedCommand==ON) percent = 100
+        if(receivedCommand==OFF) percent = 0
+        if(percent<0)   percent = 0
+        if(percent>100) percent = 100
+
+        var String[] itemName = relayItem.getName().toString().split("_")
+        var LinkedHashMap<String, String> typeMap = setSubTypeToValue.get(itemName.get(0)+"_"+itemName.get(1))
+
+        println ("Function: dimmerOperationNew >> "+ itemName.get(2)+";"+itemName.get(3)+";1;1;" + typeMap.get("value") + ";" +  percent)
+        arduinoItem.sendCommand(itemName.get(2)+";"+itemName.get(3)+";1;0;"+typeMap.get("value")+";" + percent + "\n")
+]
+//receiving msg from mysensors gateway
+
+rule "Arduino sends to Openhab"
+        when
+                Item Arduino received update
+        then
+                var String lineBuffer =  Arduino.state.toString.split("\n")
+                for (String line : lineBuffer) {
+                        if(!line.contains(";")) {continue}
+                        var String[] message = line.split(";")
+                        var Integer nodeId = new Integer(message.get(0))
+                        var Integer childId = new Integer(message.get(1))
+                        var Integer msgType = new Integer(message.get(2))
+                        var Integer ack = new Integer(message.get(3))
+                        var Integer subType = new Integer(message.get(4))
+                        var String msg = message.get(5)
+                        // if message type equals set
+
+			logInfo ( "FILE", "Node:" + nodeId + " childID:" + childId + "  msgType:" + msgType + " subType:" + subType + " msg:" + msg)
+
+                        var Integer itemCreate = 0
+                        var String command = ""
+                        var LinkedHashMap<String, String>  valueMap
+                        var String itemName
+                        if(msgType == 1){
+                                valueMap = setValueToSubType.get(subType)
+                                itemName=valueMap.get("type") + "_" + nodeId + "_"+ childId
+                                //itemsAll
+                                itemsAll = all.getMembers().toString
+                                if(!itemsAll.contains(itemName)){
+                                        logInfo("FILE", "Set/Req message type: "+itemName + " not in group \"all\" so it doesn\'t exist in item file - value: "+msg)
+                                        itemCreate = 1
+                                        }
+                                else {  
+                                        if(valueMap.get("type").contains("V_LIGHT") && !valueMap.get("type").contains("V_LIGHT_LEVEL")){
+                                                if(msg == "0" ){msg="OFF"} else {msg="ON"}
+                                                }
+                                        if(valueMap.get("type").contains("V_TRIPPED")){
+                                                if(msg == "0"){msg="CLOSE"} else {msg="OPEN"}
+                                                }
+                                        logInfo ( "FILE", " Updated item " + itemName  + " value: " + msg )
+                                        if(!itemsUnused.contains(itemName)){
+                                                println("------------------------------------------------------")
+                                                postUpdate(itemName,  msg)
+                                                }
+                                        }
+                                }
+                        // Internal Command
+                        else if(msgType == 3){
+                                valueMap = internalValueToSubType.get(subType)
+                                itemName=valueMap.get("type") + "_" + nodeId + "_" + childId
+                                if(!itemsAll.contains(itemName)){
+                                        //logInfo("FILE", "Internal message type: "+itemName + " not in group \"all\" so it doesn\'t exist in item file - value: "+msg)
+                                        //itemCreate = 1
+                                        }
+                                }
+                        else if(msgType == 0){
+                                valueMap = presentationValueToSubType.get(subType)
+                                itemName=valueMap.get("type") + "_" + nodeId + "_" + childId
+                                if(!itemsAll.contains(itemName)){
+                                        logInfo("FILE", "Presentation message type: "+itemName + " not in group \"all\" so it doesn\'t exist in item file - value: "+msg)
+                                        itemCreate = 1
+                                        }
+                                }
+
+                        if(itemCreate == 1 && deviceDiscovery.contains("ON")){
+                                var String itemName=valueMap.get("type") + "_" + nodeId + "_" + childId
+                                var String itemType=valueMap.get("itemType")
+                                var String itemComment=valueMap.get("comment")
+                                var String group="(all, unconfigured, unused)"
+                                var String line=itemType+" "+itemName+" \""+itemComment+" - Example value: "+msg+"\" "+group+" "
+                                command=OPENHAB_HOME+"/bin/addItem2.sh -f "+OPENHAB_CONF+"/items/"+SITE_NAME+".items -i "+itemName+" -l "+line.replaceAll(" ", "____")
+                                executeCommandLine(command)
+                                println(command)
+                                itemCreate=0
+                                }
+                        }
+                }
+end
