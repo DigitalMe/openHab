@@ -3,30 +3,31 @@ Group all
 Group unconfigured (all)
 Group unused (all)
 Group gGroundFloor (all)
-Number Midnite0 "4356 [%d]" (all) { modbus="slave1:0"}
-Number Midnite1 "4357 [%d]" (all) { modbus="slave1:1"}
-Number Midnite2 "4358 [%d]" (all) { modbus="slave1:2"}
-Number Midnite3 "4359 [%d]" (all) { modbus="slave1:3"}
-Number Midnite4 "4360 [%d]" (all) { modbus="slave1:4"}
-Number Midnite5 "4361 [%d]" (all) { modbus="slave1:5"}
-Number Midnite6 "4362 [%d]" (all) { modbus="slave1:6"}
-Number Midnite7 "4363 [%d]" (all) { modbus="slave1:7"}
-Number Midnite8 "4364 [%d]" (all) { modbus="slave1:8"}
-Number Midnite9 "4365 [%d]" (all) { modbus="slave1:9"}
-Number Midnite10 "4366 [%d]" (all) { modbus="slave1:10"}
-Number Midnite11 "4367 [%d]" (all) { modbus="slave1:11"}
-Number Midnite12 "4368 [%d]" (all) { modbus="slave1:12"}
-Number Midnite13 "4369 [%d]" (all) { modbus="slave1:13"}
-Number Midnite14 "4370 [%d]" (all) { modbus="slave1:14"}
-Number Midnite15 "4371 [%d]" (all) { modbus="slave1:15"}
-Number Midnite16 "4372 [%d]" (all) { modbus="slave1:16"}
-Number Midnite17 "4373 [%d]" (all) { modbus="slave1:17"}
-Number Midnite18 "4374 [%d]" (all) { modbus="slave1:18"}
-Number Midnite19 "4375 [%d]" (all) { modbus="slave1:19"}
-Number Midnite20 "4376 [%d]" (all) { modbus="slave1:20"}
-Number Midnite21 "4377 [%d]" (all) { modbus="slave1:21"}
-Number Midnite22 "State of charge4378 [%d]" (all) { modbus="slave1:22"}
-Number Midnite23 "4379 [%d]" (all) { modbus="slave1:23"}
+Number Midnite0 "4350 [%d]" (all) { modbus="slave1:0"}
+Number Midnite1 "4351 [%d]" (all) { modbus="slave1:1"}
+Number Midnite2 "4352 [%d]" (all) { modbus="slave1:2"}
+Number Midnite3 "4353 [%d]" (all) { modbus="slave1:3"}
+Number Midnite4 "4354 [%d]" (all) { modbus="slave1:4"}
+Number Midnite5 "4355 [%d]" (all) { modbus="slave1:5"}
+Number Midnite6 "4356 [%d]" (all) { modbus="slave1:6"}
+Number Midnite7 "4357 [%d]" (all) { modbus="slave1:7"}
+Number Midnite8 "4358 [%d]" (all) { modbus="slave1:8"}
+Number Midnite9 "4359 [%d]" (all) { modbus="slave1:9"}
+Number Midnite10 "4360 [%d]" (all) { modbus="slave1:10"}
+Number Midnite11 "4361 [%d]" (all) { modbus="slave1:11"}
+Number Midnite12 "4362 [%d]" (all) { modbus="slave1:12"}
+Number Midnite13 "4363 [%d]" (all) { modbus="slave1:13"}
+Number Midnite14 "4364 [%d]" (all) { modbus="slave1:14"}
+Number Midnite15 "4365 [%d]" (all) { modbus="slave1:15"}
+Number Midnite16 "4366 [%d]" (all) { modbus="slave1:16"}
+Number Midnite17 "4367 [%d]" (all) { modbus="slave1:17"}
+Number Midnite18 "4368 [%d]" (all) { modbus="slave1:18"}
+Number Midnite19 "4369 [%d]" (all) { modbus="slave1:19"}
+Number Midnite20 "4370 [%d]" (all) { modbus="slave1:20"}
+Number Midnite21 "4371 [%d]" (all) { modbus="slave1:21"}
+Number Midnite22 "State of charge 4372 [%d]" (all) { modbus="slave1:22"}
+Number Midnite23 "4373 [%d]" (all) { modbus="slave1:23"}
 
-Number V_TEMP_200_0 "Temperature  [%.1f]" (all) 
 String S_ARDUINO_NODE_200_255 "Arduino node device  - Example value: 1.5" (all, unconfigured, unused) 
+Number V_TEMP_200_1 "Temperature [%.1f]" <temperature> (all)
+Number V_HUM_200_0 "Humidity [%.1f]" <humidity> (all)

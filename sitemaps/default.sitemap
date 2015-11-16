@@ -2,6 +2,7 @@ sitemap default label="Main Menu"
 {
 	Frame label="Midnite Solar Charge Controller"{
 		Text item=Midnite22
-		Text item=V_TEMP_200_0
+		Text item=V_TEMP_200_1
+		Text item=V_HUM_200_0
 	}
 }
